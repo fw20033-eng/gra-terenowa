@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Gra Terenowa</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script>
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyDUNsK2Vtw69MQMZ0lwfmpW-95TSgJ1kZ4",
+  authDomain:        "gra-terenowa-7ce90.firebaseapp.com",
+  databaseURL:       "https://gra-terenowa-7ce90-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId:         "gra-terenowa-7ce90",
+  storageBucket:     "gra-terenowa-7ce90.firebasestorage.app",
+  messagingSenderId: "138180931791",
+  appId:             "1:138180931791:web:a3368180a0305a957407ba"
+};
+const ADMIN_PW = "Gol12345!";
+
+firebase.initializeApp(FIREBASE_CONFIG);
+const db = firebase.database();
+const ref = (path) => db.ref(path);
+window._ready = true;
+window._ADMIN_PW = ADMIN_PW;
+</script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#1c2330;
+  --border:#30363d;--text:#e6edf3;--muted:#8b949e;
+  --accent:#58a6ff;--green:#3fb950;--red:#f85149;
+  --amber:#d29922;--purple:#bc8cff;--admin:#a78bfa;
+  --radius:10px;--font:'Segoe UI',system-ui,sans-serif;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font);overflow:hidden}
+
+/* ── SCREEN SYSTEM ── */
+.screen{display:none;height:100%;flex-direction:column}
+.screen.active{display:flex}
+
+/* ── LOGIN ── */
+#screen-login{align-items:center;justify-content:center;padding:1.5rem;background:var(--bg)}
+.login-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:2rem 1.75rem;width:100%;max-width:420px}
+.login-title{font-size:1.5rem;font-weight:800;text-align:center;margin-bottom:0.25rem}
+.login-sub{font-size:0.82rem;color:var(--muted);text-align:center;margin-bottom:1.75rem}
+.field{margin-bottom:1rem}
+.field label{display:block;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:0.4rem}
+.field input{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:0.7rem 0.9rem;color:var(--text);font-size:0.95rem;font-family:var(--font);outline:none;transition:border .15s}
+.field input:focus{border-color:var(--accent)}
+.err{color:var(--red);font-size:0.8rem;min-height:1.2rem;margin-bottom:0.5rem;text-align:center}
+.btn{width:100%;padding:0.75rem;border:none;border-radius:var(--radius);font-size:0.95rem;font-weight:700;cursor:pointer;font-family:var(--font);transition:opacity .15s}
+.btn:hover{opacity:.88}
+.btn-player{background:var(--accent);color:#000;margin-bottom:0.5rem}
+.btn-admin{background:var(--admin);color:#000}
+.divider{text-align:center;color:var(--muted);font-size:0.8rem;margin:1rem 0;position:relative}
+.divider::before,.divider::after{content:'';position:absolute;top:50%;width:42%;height:1px;background:var(--border)}
+.divider::before{left:0}.divider::after{right:0}
+
+/* ── PLAYER SCREEN ── */
+#screen-player{background:var(--bg);overflow:hidden}
+.player-topbar{display:flex;align-items:center;justify-content:space-between;padding:0.6rem 1rem;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
+.player-topbar h2{font-size:0.9rem;font-weight:700}
+.player-topbar .info{font-size:0.72rem;color:var(--muted);display:flex;gap:0.75rem;align-items:center}
+.gps-dot{width:7px;height:7px;border-radius:50%;background:var(--red)}
+.gps-dot.ok{background:var(--green)}
+.player-map{flex:1;min-height:0}
+.player-bottom{background:var(--bg2);border-top:1px solid var(--border);padding:0.75rem 1rem;flex-shrink:0;max-height:40vh;overflow-y:auto}
+.task-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:0.75rem;margin-bottom:0.5rem}
+.task-card .type-badge{font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:0.15rem 0.5rem;border-radius:4px;background:rgba(88,166,255,.15);color:var(--accent);margin-bottom:0.4rem;display:inline-block}
+.task-card .desc{font-size:0.88rem;margin-bottom:0.5rem;line-height:1.4}
+.task-card .dist{font-size:0.78rem;color:var(--muted);margin-bottom:0.6rem}
+.task-card input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:0.5rem 0.7rem;color:var(--text);font-size:0.85rem;font-family:var(--font);outline:none;margin-bottom:0.5rem}
+.task-card input:focus{border-color:var(--accent)}
+.btn-sm{padding:0.45rem 1rem;border:none;border-radius:8px;font-size:0.82rem;font-weight:700;cursor:pointer;font-family:var(--font)}
+.btn-green{background:var(--green);color:#000}
+.btn-red{background:var(--red);color:#fff}
+.btn-muted{background:var(--bg);border:1px solid var(--border);color:var(--text)}
+.locked-card{text-align:center;padding:1rem;color:var(--muted)}
+.locked-card .lock{font-size:2rem;margin-bottom:0.4rem}
+
+/* Progress bar */
+.prog-bar{height:4px;background:var(--border);border-radius:2px;margin:0 1rem 0.5rem;flex-shrink:0}
+.prog-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .4s}
+
+/* Inventory bar */
+.inv-bar{display:flex;gap:0.5rem;padding:0.5rem 1rem;background:var(--bg);border-bottom:1px solid var(--border);overflow-x:auto;flex-shrink:0}
+.inv-item{min-width:44px;height:44px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;cursor:pointer;position:relative;flex-shrink:0}
+.inv-item .badge{position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;font-size:0.6rem;font-weight:700;border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center}
+.inv-empty{font-size:0.75rem;color:var(--muted);display:flex;align-items:center;padding:0 0.5rem}
+
+/* ── ADMIN SCREEN ── */
+#screen-admin{background:var(--bg);flex-direction:row}
+.admin-sidebar{width:300px;min-width:300px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.admin-head{padding:0.75rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:0.5rem;flex-shrink:0}
+.admin-head h2{font-size:0.9rem;font-weight:800;color:var(--admin);flex:1}
+.admin-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
+.atab{flex:1;padding:0.5rem 0.2rem;background:none;border:none;color:var(--muted);font-size:0.65rem;font-weight:700;cursor:pointer;border-bottom:2px solid transparent;font-family:var(--font);text-transform:uppercase;letter-spacing:.04em}
+.atab.active{color:var(--admin);border-bottom-color:var(--admin)}
+.atab-content{flex:1;overflow-y:auto;display:none;padding:0.75rem}
+.atab-content.active{display:block}
+.admin-main{flex:1;position:relative;overflow:hidden}
+#admin-map{width:100%;height:100%}
+.section-label{font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:0.5rem;margin-top:0.75rem}
+.section-label:first-child{margin-top:0}
+.inp{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:0.45rem 0.65rem;color:var(--text);font-size:0.82rem;font-family:var(--font);outline:none;margin-bottom:0.4rem}
+.inp:focus{border-color:var(--accent)}
+select.inp{cursor:pointer}
+.btn-full{width:100%;padding:0.5rem;border:none;border-radius:8px;font-size:0.82rem;font-weight:700;cursor:pointer;font-family:var(--font);margin-bottom:0.35rem}
+.btn-accent{background:var(--accent);color:#000}
+.btn-admin-c{background:var(--admin);color:#000}
+.btn-danger{background:rgba(248,81,73,.15);color:var(--red);border:1px solid rgba(248,81,73,.3)}
+.btn-outline{background:none;border:1px solid var(--border);color:var(--text)}
+.player-row{display:flex;align-items:center;gap:0.5rem;padding:0.5rem 0.6rem;background:var(--bg3);border:1px solid var(--border);border-radius:8px;margin-bottom:0.35rem;font-size:0.8rem}
+.player-row .dot{width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0}
+.task-row{display:flex;flex-direction:column;gap:0.25rem;padding:0.55rem 0.7rem;background:var(--bg3);border:1px solid var(--border);border-radius:8px;margin-bottom:0.4rem;font-size:0.78rem}
+.task-row-top{display:flex;align-items:center;gap:0.4rem}
+.task-row .order{color:var(--muted);font-size:0.72rem;flex-shrink:0}
+.task-row .type-icon{font-size:1rem;flex-shrink:0}
+.task-row .pts-badge{background:rgba(210,153,34,.15);color:var(--amber);font-size:0.68rem;font-weight:700;padding:0.1rem 0.4rem;border-radius:4px;flex-shrink:0}
+.task-row .desc-text{font-size:0.8rem;color:var(--text);line-height:1.35;padding-left:0.1rem}
+.task-row .name{flex:1;min-width:0}
+.item-row{display:flex;align-items:center;gap:0.5rem;padding:0.45rem 0.6rem;background:var(--bg3);border:1px solid var(--border);border-radius:8px;margin-bottom:0.3rem;font-size:0.78rem}
+.item-row .icon{font-size:1.1rem;flex-shrink:0}
+.icon-btn{width:38px;height:38px;border-radius:8px;border:2px solid var(--border);background:var(--bg3);cursor:pointer;font-size:1.3rem;display:flex;align-items:center;justify-content:center;transition:border .15s,background .15s;flex-shrink:0}
+.icon-btn:hover{background:var(--bg);border-color:var(--muted)}
+.icon-btn.selected{border-color:var(--accent);background:rgba(88,166,255,.12)}
+
+/* ── MINE OVERLAY ── */
+#mine-overlay{position:fixed;inset:0;z-index:9999;background:#000;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:2rem}
+#mine-overlay.on{display:flex}
+body.mine-on{overflow:hidden}
+.mine-boom{font-size:6rem;animation:boom .5s ease}
+@keyframes boom{0%{transform:scale(.2);opacity:0}70%{transform:scale(1.3)}100%{transform:scale(1);opacity:1}}
+.mine-title{font-size:2rem;font-weight:900;color:var(--red);margin:.5rem 0 .25rem}
+.mine-sub{color:rgba(255,255,255,.5);margin-bottom:1.5rem;font-size:0.9rem}
+#mine-timer{font-size:5rem;font-weight:900;color:#fff;font-family:monospace}
+.mine-bar{width:280px;height:8px;background:#333;border-radius:4px;margin-top:1rem;overflow:hidden}
+.mine-bar-fill{height:100%;background:var(--red);border-radius:4px}
+
+/* ── ITEM MODAL ── */
+#item-modal{position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center;padding:1rem}
+#item-modal.on{display:flex}
+.item-modal-box{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:1.5rem;width:100%;max-width:320px;text-align:center}
+.item-modal-icon{font-size:4rem;margin-bottom:0.5rem}
+.item-modal-name{font-size:1.2rem;font-weight:800;margin-bottom:0.25rem}
+.item-modal-desc{font-size:0.85rem;color:var(--muted);margin-bottom:1rem;line-height:1.4}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:0.6rem 1.2rem;font-size:0.85rem;font-weight:600;z-index:7000;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
+#toast.show{opacity:1}
+
+/* ── GEO MODAL ── */
+#geo-modal{position:fixed;inset:0;z-index:6000;background:rgba(0,0,0,.75);display:none;align-items:flex-start;justify-content:center;padding:1rem;overflow-y:auto}
+#geo-modal.on{display:flex}
+.geo-box{background:var(--bg2);border:1px solid var(--border);border-radius:16px;width:100%;max-width:500px;margin:auto;overflow:hidden}
+.geo-header{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-bottom:1px solid var(--border)}
+.geo-header h3{font-size:0.95rem;font-weight:700}
+#geo-map{height:260px}
+.geo-body{padding:1rem 1.25rem}
+.geo-coords{font-size:0.8rem;color:var(--muted);margin-bottom:0.75rem;min-height:1.2rem}
+.geo-footer{display:flex;gap:0.5rem;justify-content:flex-end;padding:0.75rem 1.25rem;border-top:1px solid var(--border)}
+
+@media(max-width:600px){
+  #screen-admin{flex-direction:column}
+  .admin-sidebar{width:100%;min-width:0;max-height:50vh}
+}
+</style>
+</head>
+<body>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- MINE OVERLAY -->
+<div id="mine-overlay">
+  <div class="mine-boom">💥</div>
+  <div class="mine-title">WPADŁEŚ NA MINĘ!</div>
+  <div class="mine-sub" id="mine-sub">Ekran zablokowany</div>
+  <div id="mine-timer">2:00</div>
+  <div class="mine-bar"><div class="mine-bar-fill" id="mine-fill" style="width:100%"></div></div>
+</div>
+
+<!-- ITEM MODAL -->
+<div id="item-modal">
+  <div class="item-modal-box">
+    <div class="item-modal-icon" id="im-icon">🎁</div>
+    <div class="item-modal-name" id="im-name">Przedmiot</div>
+    <div class="item-modal-desc" id="im-desc">Opis</div>
+    <button class="btn-sm btn-green" onclick="closeItemModal()">Świetnie!</button>
+  </div>
+</div>
+
+<!-- GEO MODAL -->
+<div id="geo-modal">
+  <div class="geo-box">
+    <div class="geo-header">
+      <h3 id="geo-title">Ustaw lokalizację</h3>
+      <button onclick="closeGeoModal()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.2rem;">✕</button>
+    </div>
+    <div id="geo-map"></div>
+    <div class="geo-body">
+      <div class="geo-coords" id="geo-coords">Kliknij na mapie aby ustawić punkt</div>
+      <label style="font-size:0.75rem;color:var(--muted);display:block;margin-bottom:0.3rem">Promień (metry): <span id="geo-radius-val">50</span>m</label>
+      <input type="range" id="geo-radius" min="5" max="200" value="50" step="5" style="width:100%" oninput="document.getElementById('geo-radius-val').textContent=this.value;updateGeoCircle()">
+    </div>
+    <div class="geo-footer">
+      <button class="btn-sm btn-red" onclick="clearGeoPoint()">Usuń punkt</button>
+      <button class="btn-sm btn-muted" onclick="closeGeoModal()">Anuluj</button>
+      <button class="btn-sm btn-green" onclick="saveGeoPoint()">Zapisz</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ LOGIN ═══════════════ -->
+<div id="screen-login" class="screen active">
+  <div class="login-card">
+    <div class="login-title">🗺️ Gra Terenowa</div>
+    <div class="login-sub">Wpisz login i kod dostępu otrzymany od organizatora</div>
+    <div class="field">
+      <label>Login</label>
+      <input type="text" id="login-user" placeholder="twój login" autocomplete="off"
+        onkeydown="if(event.key==='Enter')document.getElementById('login-code').focus()">
+    </div>
+    <div class="field">
+      <label>Kod dostępu</label>
+      <input type="text" id="login-code" placeholder="np. 482910" autocomplete="off" maxlength="10"
+        onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div class="err" id="login-err"></div>
+    <button class="btn btn-player" onclick="doLogin()">Wejdź do gry</button>
+    <div class="divider">lub</div>
+    <div class="field">
+      <label>Hasło admina</label>
+      <input type="password" id="admin-pw" placeholder="••••••••" autocomplete="off"
+        onkeydown="if(event.key==='Enter')doAdminLogin()">
+    </div>
+    <button class="btn btn-admin" onclick="doAdminLogin()">Panel administratora</button>
+  </div>
+</div>
+
+<!-- ═══════════════ PLAYER ═══════════════ -->
+<div id="screen-player" class="screen">
+  <div class="player-topbar">
+    <div>
+      <h2 id="p-name">Gracz</h2>
+      <div class="info">
+        <span class="gps-dot" id="gps-dot"></span>
+        <span id="gps-label">Brak GPS</span>
+        <span>·</span>
+        <span id="p-points">0 pkt</span>
+      </div>
+    </div>
+    <button onclick="doLogout()" style="background:none;border:1px solid var(--border);color:var(--muted);padding:0.3rem 0.6rem;border-radius:6px;cursor:pointer;font-size:0.75rem;font-family:var(--font)">Wyloguj</button>
+  </div>
+  <div class="prog-bar"><div class="prog-fill" id="prog-fill" style="width:0%"></div></div>
+  <div class="inv-bar" id="inv-bar"><span class="inv-empty">Ekwipunek pusty</span></div>
+  <div id="player-map" class="player-map"></div>
+  <div class="player-bottom" id="player-bottom">
+    <div style="color:var(--muted);font-size:0.85rem;text-align:center;padding:1rem">Ładowanie zadań...</div>
+  </div>
+</div>
+
+<!-- ═══════════════ ADMIN ═══════════════ -->
+<div id="screen-admin" class="screen">
+  <div class="admin-sidebar">
+    <div class="admin-head">
+      <h2>⚙ Admin</h2>
+      <button onclick="adminLocate()" style="background:none;border:1px solid var(--border);color:var(--accent);padding:0.25rem 0.6rem;border-radius:6px;cursor:pointer;font-size:0.72rem;font-family:var(--font);margin-right:0.35rem;">📍 Moja lokalizacja</button>
+      <button onclick="doLogout()" style="background:none;border:1px solid var(--border);color:var(--muted);padding:0.25rem 0.6rem;border-radius:6px;cursor:pointer;font-size:0.72rem;font-family:var(--font)">Wyloguj</button>
+    </div>
+    <div class="admin-tabs">
+      <button class="atab active" onclick="switchAdminTab('players')">Gracze</button>
+      <button class="atab" onclick="switchAdminTab('tasks')">Zadania</button>
+      <button class="atab" onclick="switchAdminTab('items')">Ekwipunek</button>
+      <button class="atab" onclick="switchAdminTab('mines')">💣 Miny</button>
+    </div>
+
+    <!-- GRACZE -->
+    <div id="atab-players" class="atab-content active">
+      <div class="section-label">Dodaj gracza</div>
+      <input class="inp" id="new-player-name" placeholder="Login gracza">
+      <input class="inp" id="new-player-code" placeholder="Kod dostępu (np. 482910)" maxlength="10">
+      <button class="btn-full btn-accent" onclick="addPlayer()">+ Dodaj gracza</button>
+      <div class="section-label">Gracze online</div>
+      <div id="players-list"></div>
+    </div>
+
+    <!-- ZADANIA -->
+    <div id="atab-tasks" class="atab-content">
+      <div class="section-label">Nowe zadanie</div>
+      <select class="inp" id="task-type">
+        <option value="code">📍 Wpisz kod w terenie</option>
+        <option value="question">❓ Pytanie z odpowiedzią</option>
+        <option value="place">🚶 Dotrzyj do miejsca</option>
+      </select>
+      <input class="inp" id="task-desc" placeholder="Treść zadania">
+      <input class="inp" id="task-answer" placeholder="Odpowiedź / kod">
+      <input class="inp" type="number" id="task-pts" placeholder="Punkty za zaliczenie" value="10">
+      <button class="btn-full btn-accent" onclick="addTask()">+ Dodaj zadanie</button>
+      <div class="section-label">Lista zadań</div>
+      <div id="tasks-list"></div>
+    </div>
+
+    <!-- EKWIPUNEK -->
+    <div id="atab-items" class="atab-content">
+      <div class="section-label">Dodaj przedmiot</div>
+      <div class="section-label" style="margin-bottom:0.35rem">Ikona przedmiotu</div>
+      <div id="icon-picker" style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-bottom:0.5rem;">
+      </div>
+      <input type="hidden" id="item-icon" value="🎁">
+      <input class="inp" id="item-name" placeholder="Nazwa przedmiotu">
+      <input class="inp" id="item-desc" placeholder="Opis / efekt">
+      <select class="inp" id="item-effect">
+        <option value="none">Brak efektu</option>
+        <option value="points_bonus">+50% punktów przez 3 min</option>
+        <option value="mine_shield">Tarcza przed miną</option>
+        <option value="hint">Podpowiedź do zadania</option>
+        <option value="speed_freeze">Zamróź rywala</option>
+      </select>
+      <button class="btn-full btn-admin-c" onclick="addItem()">+ Dodaj przedmiot</button>
+      <div class="section-label">Przedmioty w puli</div>
+      <div id="items-list"></div>
+    </div>
+
+    <!-- MINY -->
+    <div id="atab-mines" class="atab-content">
+      <div class="section-label">Nowa mina</div>
+      <select class="inp" id="mine-dur">
+        <option value="random" selected>🎲 Losowy (1-2 min)</option>
+        <option value="60">⏱ Blokada 1 minuta</option>
+        <option value="120">⏱ Blokada 2 minuty</option>
+      </select>
+      <button class="btn-full btn-danger" onclick="addMine()">💣 Dodaj minę (ustaw na mapie)</button>
+      <button class="btn-full btn-outline" onclick="deleteAllMines()" style="margin-top:0.25rem">🗑 Usuń wszystkie miny</button>
+      <div class="section-label">Aktywne miny</div>
+      <div id="mines-list"></div>
+    </div>
+  </div>
+
+  <div class="admin-main">
+    <div id="admin-map"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════════════════
+var currentUser = null;
+var gpsWatchId  = null;
+var playerLat   = null;
+var playerLng   = null;
+var adminMap    = null;
+var playerMap   = null;
+var geoMap      = null;
+var geoTempLat  = null;
+var geoTempLng  = null;
+var geoMarker   = null;
+var geoCircle   = null;
+var geoContext  = null; // {type:'task'|'mine'|'item', id}
+var mineOn      = false;
+var mineTick    = null;
+var mineMarkers = [];
+var taskMarkers = [];
+var itemMarkers = [];
+var playerMarker= null;
+
+function toast(msg) {
+  var el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(function(){ el.classList.remove('show'); }, 2500);
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+  document.getElementById('screen-' + id).classList.add('active');
+}
+
+function waitFB() {
+  return new Promise(function(res) {
+    if (window._ready) { res(); return; }
+    var n=0, t=setInterval(function(){
+      if(window._ready || ++n>80){ clearInterval(t); res(); }
+    }, 100);
+  });
+}
+
+function setErr(id, msg) {
+  var el = document.getElementById(id);
+  if (el) el.textContent = msg;
+}
+
+function getDistance(lat1,lon1,lat2,lon2) {
+  var R=6371000, d2r=Math.PI/180;
+  var dLat=(lat2-lat1)*d2r, dLon=(lon2-lon1)*d2r;
+  var a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1*d2r)*Math.cos(lat2*d2r)*Math.sin(dLon/2)*Math.sin(dLon/2);
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+// ═══════════════════════════════════════════════════════════
+//  LOGIN / LOGOUT
+// ═══════════════════════════════════════════════════════════
+async function doLogin() {
+  var login = document.getElementById('login-user').value.trim().toLowerCase();
+  var code  = document.getElementById('login-code').value.trim();
+  if (!login || !code) { setErr('login-err','Wpisz login i kod.'); return; }
+  setErr('login-err','⏳ Łączenie...');
+  await waitFB();
+  var snap = await ref('players/'+login).get();
+  if (!snap.exists()) { setErr('login-err','❌ Nie znaleziono gracza.'); return; }
+  var data = snap.val();
+  if (String(data.code) !== String(code)) { setErr('login-err','❌ Błędny kod.'); return; }
+  setErr('login-err','');
+  currentUser = { login: login, role: 'player' };
+  localStorage.setItem('gt_session', JSON.stringify(currentUser));
+  startPlayerSession();
+}
+
+async function doAdminLogin() {
+  var pw = document.getElementById('admin-pw').value;
+  if (!pw) { setErr('login-err','Wpisz hasło.'); return; }
+  setErr('login-err','⏳ Łączenie...');
+  await waitFB();
+  if (pw !== window._ADMIN_PW) { setErr('login-err','❌ Błędne hasło.'); return; }
+  setErr('login-err','');
+  currentUser = { login: 'admin', role: 'admin' };
+  localStorage.setItem('gt_session', JSON.stringify(currentUser));
+  startAdminSession();
+}
+
+function doLogout() {
+  if (gpsWatchId) navigator.geolocation.clearWatch(gpsWatchId);
+  stopMineOverlay();
+  currentUser = null;
+  playerLat = null; playerLng = null;
+  localStorage.removeItem('gt_session');
+  showScreen('login');
+}
+
+// Session restore
+document.addEventListener('DOMContentLoaded', async function() {
+  var saved = localStorage.getItem('gt_session');
+  if (!saved) return;
+  await waitFB();
+  try {
+    var sess = JSON.parse(saved);
+    currentUser = sess;
+    if (sess.role === 'admin') startAdminSession();
+    else startPlayerSession();
+  } catch(e) { localStorage.removeItem('gt_session'); }
+});
+
+// ═══════════════════════════════════════════════════════════
+//  PLAYER SESSION
+// ═══════════════════════════════════════════════════════════
+function startPlayerSession() {
+  showScreen('player');
+  document.getElementById('p-name').textContent = '👤 ' + currentUser.login;
+  initPlayerMap();
+  startGPS();
+  listenPlayerData();
+  listenMinesPlayer();
+  checkMineOnLoad();
+}
+
+function initPlayerMap() {
+  if (playerMap) return;
+  playerMap = L.map('player-map', { zoomControl: true }).setView([52.23, 21.01], 14);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM' }).addTo(playerMap);
+}
+
+function startGPS() {
+  if (!navigator.geolocation) return;
+  gpsWatchId = navigator.geolocation.watchPosition(function(pos) {
+    playerLat = pos.coords.latitude;
+    playerLng = pos.coords.longitude;
+    document.getElementById('gps-dot').classList.add('ok');
+    document.getElementById('gps-label').textContent = 'GPS aktywny';
+    // aktualizuj marker gracza
+    if (!playerMarker) {
+      var icon = L.divIcon({ className:'', html:'<div style="width:14px;height:14px;background:var(--accent);border:2px solid #fff;border-radius:50%;box-shadow:0 0 8px rgba(88,166,255,.6)"></div>', iconSize:[14,14], iconAnchor:[7,7] });
+      playerMarker = L.marker([playerLat, playerLng], { icon: icon }).addTo(playerMap);
+    } else {
+      playerMarker.setLatLng([playerLat, playerLng]);
+    }
+    // zapisz pozycję w Firebase
+    if (currentUser) {
+      ref('players/'+currentUser.login).update({ lat: playerLat, lng: playerLng, lastSeen: Date.now() });
+    }
+    checkMines(playerLat, playerLng);
+    checkItemPickup(playerLat, playerLng);
+  }, function(){
+    document.getElementById('gps-label').textContent = 'Brak GPS';
+  }, { enableHighAccuracy: true, timeout: 10000 });
+}
+
+function listenPlayerData() {
+  var login = currentUser.login;
+  // nasłuchuj danych gracza (punkty, ekwipunek)
+  ref('players/'+login).on('value', function(snap) {
+    var d = snap.val() || {};
+    document.getElementById('p-points').textContent = (d.points || 0) + ' pkt';
+    renderInventory(d.inventory || {});
+    // progress
+    var done = d.tasksDone || 0;
+  });
+  // nasłuchuj zadań
+  ref('tasks').on('value', function(snap) {
+    var tasks = [];
+    if (snap.exists()) snap.forEach(function(ch) { tasks.push({ id: ch.key, ...ch.val() }); });
+    tasks.sort(function(a,b){ return (a.order||0)-(b.order||0); });
+    renderPlayerTasks(tasks);
+    renderTaskMarkersOnPlayerMap(tasks);
+  });
+  // nasłuchuj przedmiotów w terenie
+  ref('field_items').on('value', function(snap) {
+    renderFieldItems(snap);
+  });
+}
+
+function renderPlayerTasks(tasks) {
+  var login = currentUser.login;
+  ref('players/'+login).get().then(function(snap) {
+    var d = snap.val() || {};
+    var doneTasks = d.doneTasks || {};
+    var total = tasks.length;
+    var done = Object.keys(doneTasks).length;
+    document.getElementById('prog-fill').style.width = total ? (done/total*100)+'%' : '0%';
+    var html = '';
+    if (!tasks.length) {
+      html = '<div style="color:var(--muted);font-size:0.85rem;text-align:center;padding:0.5rem">Brak zadań. Czekaj na organizatora.</div>';
+    } else {
+      tasks.forEach(function(t) {
+        var isDone = !!doneTasks[t.id];
+        html += renderTaskCard(t, isDone);
+      });
+    }
+    document.getElementById('player-bottom').innerHTML = html;
+  });
+}
+
+function renderTaskCard(t, isDone) {
+  var typeLabel = { code:'Kod z terenu', question:'Pytanie', place:'Dotarcie do miejsca' }[t.type] || t.type;
+  var distTxt = '';
+  if (t.geoLat && t.geoLng && playerLat !== null) {
+    var d = Math.round(getDistance(playerLat, playerLng, t.geoLat, t.geoLng));
+    distTxt = d + 'm od punktu';
+  }
+
+  if (isDone) {
+    return '<div class="task-card" style="opacity:.5"><div class="type-badge">✅ Zaliczone</div><div class="desc">'+t.desc+'</div><div class="dist">+'+t.pts+' pkt</div></div>';
+  }
+
+  // Sprawdź blokadę GPS
+  if (t.geoLat && t.geoLng && playerLat !== null) {
+    var dist = getDistance(playerLat, playerLng, t.geoLat, t.geoLng);
+    if (dist > (t.geoRadius || 50)) {
+      return '<div class="task-card"><div class="type-badge">'+typeLabel+'</div><div class="locked-card"><div class="lock">🔒</div><div style="font-size:0.85rem">Zadanie zablokowane</div><div style="font-size:0.75rem;margin-top:0.25rem">'+distTxt+'</div></div></div>';
+    }
+  }
+
+  var inputHtml = '';
+  if (t.type === 'code' || t.type === 'question') {
+    inputHtml = '<input id="ans-'+t.id+'" placeholder="Twoja odpowiedź...">';
+  }
+  var btnHtml = '';
+  if (t.type === 'place') {
+    btnHtml = '<button class="btn-sm btn-green" onclick="submitTask(\''+t.id+'\',\'place\')">✅ Jestem na miejscu</button>';
+  } else {
+    btnHtml = '<button class="btn-sm btn-green" onclick="submitTask(\''+t.id+'\',\'answer\')">Sprawdź</button>';
+  }
+
+  return '<div class="task-card"><div class="type-badge">'+typeLabel+'</div><div class="desc">'+t.desc+'</div>'+(distTxt?'<div class="dist">'+distTxt+'</div>':'')+inputHtml+btnHtml+'</div>';
+}
+
+function submitTask(taskId, mode) {
+  ref('tasks/'+taskId).get().then(function(snap) {
+    if (!snap.exists()) return;
+    var t = snap.val();
+    var login = currentUser.login;
+    if (mode === 'answer') {
+      var ans = (document.getElementById('ans-'+taskId)||{}).value || '';
+      if (String(ans).trim().toLowerCase() !== String(t.answer||'').trim().toLowerCase()) {
+        toast('❌ Błędna odpowiedź!'); return;
+      }
+    }
+    // zalicz zadanie
+    ref('players/'+login+'/doneTasks/'+taskId).set(true);
+    ref('players/'+login+'/points').transaction(function(cur){ return (cur||0)+(t.pts||10); });
+    toast('✅ +' + (t.pts||10) + ' pkt!');
+    // losuj przedmiot
+    giveRandomItem(login);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  INVENTORY & ITEMS
+// ═══════════════════════════════════════════════════════════
+function renderInventory(inv) {
+  var bar = document.getElementById('inv-bar');
+  var items = Object.values(inv);
+  if (!items.length) {
+    bar.innerHTML = '<span class="inv-empty">Ekwipunek pusty</span>';
+    return;
+  }
+  bar.innerHTML = items.map(function(item, i) {
+    return '<div class="inv-item" onclick="useItem(\''+item.id+'\',\''+item.effect+'\')" title="'+item.name+'">'
+      + item.icon
+      + '</div>';
+  }).join('');
+}
+
+function useItem(itemId, effect) {
+  if (!currentUser) return;
+  var login = currentUser.login;
+  ref('players/'+login+'/inventory/'+itemId).remove();
+  switch(effect) {
+    case 'points_bonus': toast('⚡ +50% punktów przez 3 minuty!'); break;
+    case 'mine_shield': toast('🛡️ Tarcza przed miną aktywna!'); break;
+    case 'hint': toast('💡 Podpowiedź aktywowana!'); break;
+    case 'speed_freeze': toast('❄️ Rywal zamrożony!'); break;
+    default: toast('✨ Użyto przedmiotu!');
+  }
+}
+
+function giveRandomItem(login) {
+  ref('items').get().then(function(snap) {
+    if (!snap.exists()) return;
+    var items = [];
+    snap.forEach(function(ch) { items.push({ id: ch.key, ...ch.val() }); });
+    if (!items.length) return;
+    var item = items[Math.floor(Math.random() * items.length)];
+    var invKey = 'item_' + Date.now();
+    ref('players/'+login+'/inventory/'+invKey).set(item);
+    // pokaż modal
+    document.getElementById('im-icon').textContent = item.icon || '🎁';
+    document.getElementById('im-name').textContent = item.name || 'Przedmiot';
+    document.getElementById('im-desc').textContent = item.desc || '';
+    document.getElementById('item-modal').classList.add('on');
+  });
+}
+
+function closeItemModal() {
+  document.getElementById('item-modal').classList.remove('on');
+}
+
+// Przedmioty w terenie (GPS)
+function renderFieldItems(snap) {
+  itemMarkers.forEach(function(m){ m.remove(); });
+  itemMarkers = [];
+  if (!playerMap || !snap.exists()) return;
+  snap.forEach(function(ch) {
+    var it = ch.val();
+    if (!it.lat || !it.lng || it.pickedUp) return;
+    var icon = L.divIcon({ className:'', html:'<div style="font-size:1.5rem;filter:drop-shadow(0 2px 4px rgba(0,0,0,.7))">'+(it.icon||'🎁')+'</div>', iconSize:[28,28], iconAnchor:[14,14] });
+    var mk = L.marker([it.lat, it.lng], { icon: icon }).addTo(playerMap);
+    mk.bindPopup('<b>'+(it.name||'Przedmiot')+'</b><br>'+(it.desc||''));
+    itemMarkers.push(mk);
+  });
+}
+
+function checkItemPickup(lat, lng) {
+  ref('field_items').get().then(function(snap) {
+    if (!snap.exists()) return;
+    snap.forEach(function(ch) {
+      var it = ch.val();
+      if (!it.lat || !it.lng || it.pickedUp) return;
+      if (getDistance(lat, lng, it.lat, it.lng) <= (it.radius || 20)) {
+        ref('field_items/'+ch.key+'/pickedUp').set(currentUser.login);
+        var invKey = 'item_' + Date.now();
+        ref('players/'+currentUser.login+'/inventory/'+invKey).set({ id: it.id, icon: it.icon, name: it.name, desc: it.desc, effect: it.effect });
+        document.getElementById('im-icon').textContent = it.icon || '🎁';
+        document.getElementById('im-name').textContent = it.name || 'Przedmiot';
+        document.getElementById('im-desc').textContent = it.desc || '';
+        document.getElementById('item-modal').classList.add('on');
+      }
+    });
+  });
+}
+
+function renderTaskMarkersOnPlayerMap(tasks) {
+  taskMarkers.forEach(function(m){ m.remove(); });
+  taskMarkers = [];
+  if (!playerMap) return;
+  tasks.forEach(function(t, i) {
+    if (!t.geoLat || !t.geoLng) return;
+    var icon = L.divIcon({ className:'', html:'<div style="background:var(--accent);color:#000;font-size:0.7rem;font-weight:800;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid #fff">'+(i+1)+'</div>', iconSize:[22,22], iconAnchor:[11,22] });
+    var mk = L.marker([t.geoLat, t.geoLng], { icon: icon }).addTo(playerMap).bindPopup(t.desc);
+    taskMarkers.push(mk);
+    L.circle([t.geoLat, t.geoLng], { radius: t.geoRadius||50, color:'var(--accent)', fillOpacity:.08, weight:1.5 }).addTo(playerMap);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  MINES — PLAYER
+// ═══════════════════════════════════════════════════════════
+var minesCache = {};
+
+function listenMinesPlayer() {
+  ref('mines').on('value', function(snap) {
+    minesCache = {};
+    if (snap.exists()) {
+      snap.forEach(function(ch) {
+        var m = ch.val();
+        if (!m.mineUsed && m.lat && m.lng) {
+          minesCache[ch.key] = { id: ch.key, lat: m.lat, lng: m.lng, radius: m.radius||15, dur: m.mineDuration||120 };
+        }
+      });
+    }
+  });
+}
+
+function checkMines(lat, lng) {
+  if (mineOn) return;
+  var ids = Object.keys(minesCache);
+  for (var i=0; i<ids.length; i++) {
+    var m = minesCache[ids[i]];
+    if (getDistance(lat, lng, m.lat, m.lng) <= m.radius) {
+      delete minesCache[m.id];
+      ref('mines/'+m.id).update({ mineUsed: true, mineVictim: currentUser.login, usedAt: Date.now() });
+      triggerMine(m.dur);
+      break;
+    }
+  }
+}
+
+function triggerMine(dur) {
+  if (mineOn) return;
+  var endAt = Date.now() + dur * 1000;
+  if (currentUser) localStorage.setItem('mine_end_'+currentUser.login, endAt);
+  startMineOverlay(endAt, dur);
+}
+
+function startMineOverlay(endAt, totalSec) {
+  mineOn = true;
+  document.body.classList.add('mine-on');
+  document.getElementById('mine-overlay').classList.add('on');
+  history.pushState(null, '', location.href);
+  window.addEventListener('popstate', blockBack);
+  clearInterval(mineTick);
+  mineTick = setInterval(function() {
+    var rem = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+    var m = Math.floor(rem/60), s = rem%60;
+    document.getElementById('mine-timer').textContent = m+':'+(s<10?'0':'')+s;
+    document.getElementById('mine-fill').style.width = (rem/totalSec*100)+'%';
+    document.getElementById('mine-sub').textContent = 'Zostało '+m+':'+(s<10?'0':'')+s;
+    if (rem <= 0) {
+      clearInterval(mineTick);
+      document.getElementById('mine-overlay').classList.remove('on');
+      document.body.classList.remove('mine-on');
+      window.removeEventListener('popstate', blockBack);
+      mineOn = false;
+      if (currentUser) localStorage.removeItem('mine_end_'+currentUser.login);
+    }
+  }, 500);
+}
+
+function stopMineOverlay() {
+  clearInterval(mineTick);
+  mineOn = false;
+  document.body.classList.remove('mine-on');
+  var ov = document.getElementById('mine-overlay');
+  if (ov) ov.classList.remove('on');
+  window.removeEventListener('popstate', blockBack);
+}
+
+function blockBack() { history.pushState(null, '', location.href); }
+
+function checkMineOnLoad() {
+  if (!currentUser) return;
+  var endAt = parseInt(localStorage.getItem('mine_end_'+currentUser.login)||'0');
+  if (endAt && Date.now() < endAt) startMineOverlay(endAt, Math.ceil((endAt-Date.now())/1000));
+}
+
+// ═══════════════════════════════════════════════════════════
+//  ADMIN SESSION
+// ═══════════════════════════════════════════════════════════
+function startAdminSession() {
+  showScreen('admin');
+  setTimeout(initAdminMap, 100);
+  listenAdminData();
+}
+
+function initAdminMap() {
+  if (adminMap) return;
+  adminMap = L.map('admin-map').setView([52.23, 21.01], 13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM' }).addTo(adminMap);
+  // kliknięcie na mapie = ustaw lokalizację (jeśli w trybie geo)
+  adminMap.on('click', function(e) {
+    if (!geoContext) return;
+    geoTempLat = e.latlng.lat;
+    geoTempLng = e.latlng.lng;
+    updateGeoMarkerOnAdmin();
+    document.getElementById('geo-coords').textContent = geoTempLat.toFixed(5) + ', ' + geoTempLng.toFixed(5);
+  });
+  listenMinesAdmin();
+  listenFieldItemsAdmin();
+}
+
+function listenAdminData() {
+  ref('players').on('value', function(snap) {
+    var html = '';
+    if (snap.exists()) {
+      snap.forEach(function(ch) {
+        var p = ch.val();
+        var ago = p.lastSeen ? Math.round((Date.now()-p.lastSeen)/1000)+'s temu' : 'offline';
+        html += '<div class="player-row"><span class="dot"></span><span style="flex:1">'+ch.key+'</span><span style="color:var(--muted);font-size:0.72rem">'+(p.points||0)+' pkt · '+ago+'</span></div>';
+      });
+    }
+    document.getElementById('players-list').innerHTML = html || '<div style="color:var(--muted);font-size:0.8rem">Brak graczy</div>';
+  });
+  ref('tasks').on('value', function(snap) {
+    var tasks = [];
+    if (snap.exists()) snap.forEach(function(ch) { tasks.push({ id: ch.key, ...ch.val() }); });
+    tasks.sort(function(a,b){ return (a.order||0)-(b.order||0); });
+    var typeIcon = { code: '🔑', question: '❓', place: '🚶' };
+    var typeName = { code: 'Kod z terenu', question: 'Pytanie', place: 'Dotarcie do miejsca' };
+    var html = tasks.map(function(t, i) {
+      var icon  = typeIcon[t.type] || '📋';
+      var tname = typeName[t.type] || t.type;
+      return '<div class="task-row" style="position:relative;padding-right:1.8rem">'
+        + '<button onclick="deleteTask(\''+t.id+'\')" style="position:absolute;top:0.3rem;right:0.3rem;background:none;border:none;color:var(--red);cursor:pointer;font-size:1rem;line-height:1;">✕</button>'
+        + '<div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.2rem">'
+        + '<span style="color:var(--muted);font-size:0.7rem">'+(i+1)+'.</span>'
+        + '<span style="font-size:1rem">'+icon+'</span>'
+        + '<span style="font-weight:600;font-size:0.8rem;flex:1">'+tname+'</span>'
+        + '<span style="background:rgba(210,153,34,.15);color:var(--amber);font-size:0.68rem;font-weight:700;padding:0.1rem 0.4rem;border-radius:4px">+' + (t.pts||10) + ' pkt</span>'
+        + '<button onclick="openGeoModal(\'task\',\''+t.id+'\')" style="background:none;border:none;color:'+(t.geoLat?'var(--green)':'var(--muted)')+';cursor:pointer;font-size:0.9rem;" title="Ustaw GPS">📍</button>'
+        + '</div>'
+        + '<div style="font-size:0.8rem;color:var(--text);line-height:1.35;padding-left:0.1rem">'+t.desc+'</div>'
+        + '</div>';
+    }).join('');
+    document.getElementById('tasks-list').innerHTML = html || '<div style="color:var(--muted);font-size:0.8rem">Brak zadań</div>';
+  });
+  ref('items').on('value', function(snap) {
+    var html = '';
+    if (snap.exists()) snap.forEach(function(ch) {
+      var it = ch.val();
+      var hasGeo = it.lat && it.lng;
+      html += '<div class="item-row" style="flex-direction:column;align-items:stretch;gap:0.25rem">'
+        + '<div style="display:flex;align-items:center;gap:0.4rem">'
+        + '<span class="icon">'+(it.icon||'🎁')+'</span>'
+        + '<div style="flex:1;min-width:0">'
+        + '<div style="font-weight:600;font-size:0.8rem">'+(it.name||'Przedmiot')+'</div>'
+        + '<div style="font-size:0.7rem;color:var(--muted)">'+(it.desc||'')+'</div>'
+        + '</div>'
+        + '<button onclick="placeItemInField(\''+ch.key+'\',\''+encodeURIComponent(JSON.stringify(it))+'\')" title="Rozłóż w terenie" style="background:none;border:1px solid '+(hasGeo?'var(--green)':'var(--border)')+';color:'+(hasGeo?'var(--green)':'var(--muted)')+';border-radius:6px;padding:0.2rem 0.45rem;cursor:pointer;font-size:0.78rem;white-space:nowrap">📍 W teren</button>'
+        + '<button onclick="deleteItem(\''+ch.key+'\')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:0.85rem;">✕</button>'
+        + '</div>'
+        + '</div>';
+    });
+    document.getElementById('items-list').innerHTML = html || '<div style="color:var(--muted);font-size:0.8rem">Brak przedmiotów — dodaj powyżej</div>';
+  });
+  // nasłuchuj field_items żeby odświeżać markery
+  ref('field_items').on('value', function(snap) {
+    renderFieldItemsOnAdminMap(snap);
+  });
+}
+
+function switchAdminTab(name) {
+  document.querySelectorAll('.atab').forEach(function(b){ b.classList.remove('active'); });
+  document.querySelectorAll('.atab-content').forEach(function(c){ c.classList.remove('active'); });
+  document.querySelector('.atab[onclick*="\''+name+'\'"]').classList.add('active');
+  document.getElementById('atab-'+name).classList.add('active');
+  if (adminMap) setTimeout(function(){ adminMap.invalidateSize(); }, 50);
+}
+
+// ── ADD/DELETE ──────────────────────────────────────────────
+async function addPlayer() {
+  var name = document.getElementById('new-player-name').value.trim().toLowerCase();
+  var code  = document.getElementById('new-player-code').value.trim();
+  if (!name || !code) { toast('Wpisz login i kod'); return; }
+  await ref('players/'+name).set({ login: name, code: code, points: 0, doneTasks: {}, inventory: {} });
+  document.getElementById('new-player-name').value = '';
+  document.getElementById('new-player-code').value = '';
+  toast('✅ Gracz '+name+' dodany');
+}
+
+async function addTask() {
+  var type = document.getElementById('task-type').value;
+  var desc = document.getElementById('task-desc').value.trim();
+  var ans  = document.getElementById('task-answer').value.trim();
+  var pts  = parseInt(document.getElementById('task-pts').value) || 10;
+  if (!desc) { toast('Wpisz treść zadania'); return; }
+  var newRef = ref('tasks').push();
+  await newRef.set({ type: type, desc: desc, answer: ans, pts: pts, order: Date.now() });
+  document.getElementById('task-desc').value = '';
+  document.getElementById('task-answer').value = '';
+  toast('✅ Zadanie dodane');
+}
+
+async function deleteTask(id) {
+  await ref('tasks/'+id).remove();
+  toast('Zadanie usunięte');
+}
+
+async function addItem() {
+  var icon   = document.getElementById('item-icon').value.trim() || '🎁';
+  var name   = document.getElementById('item-name').value.trim();
+  var desc   = document.getElementById('item-desc').value.trim();
+  var effect = document.getElementById('item-effect').value;
+  if (!name) { toast('Wpisz nazwę przedmiotu'); return; }
+  var newRef = ref('items').push();
+  await newRef.set({ icon: icon, name: name, desc: desc, effect: effect });
+  document.getElementById('item-icon').value = '';
+  document.getElementById('item-name').value = '';
+  document.getElementById('item-desc').value = '';
+  toast('✅ Przedmiot dodany');
+}
+
+async function deleteItem(id) {
+  await ref('items/'+id).remove();
+  toast('Przedmiot usunięty');
+}
+
+// ── MINES ADMIN ─────────────────────────────────────────────
+function listenMinesAdmin() {
+  ref('mines').on('value', function(snap) {
+    mineMarkers.forEach(function(m){ try{ m.remove(); }catch(e){} });
+    mineMarkers = [];
+    var html = '';
+    if (snap.exists()) {
+      snap.forEach(function(ch) {
+        var m = ch.val();
+        var used = !!m.mineUsed;
+        // marker na mapie
+        if (m.lat && m.lng && adminMap) {
+          var mineHtml = used
+            ? '<div style="font-size:1.6rem;filter:grayscale(1) opacity(.5);drop-shadow(0 2px 4px rgba(0,0,0,.8))">💣</div>'
+            : '<div style="font-size:1.6rem;filter:drop-shadow(0 2px 4px rgba(0,0,0,.8))">💣</div>';
+          var icon = L.divIcon({ className:'', html:mineHtml, iconSize:[28,28], iconAnchor:[14,14] });
+          var mk = L.marker([m.lat, m.lng], { icon: icon }).addTo(adminMap);
+          mk.bindPopup('<b>'+(used?'💥 Wysadzona':'💣 Aktywna')+'</b><br>'+(m.mineDuration/60)+' min · r='+(m.radius||15)+'m'+(used?' · przez '+(m.mineVictim||'?'):''));
+          var ci = L.circle([m.lat, m.lng], { radius: m.radius||15, color: used?'#8b949e':'#f85149', fillOpacity: used?.05:.12, weight: used?1:2 }).addTo(adminMap);
+          mineMarkers.push(mk, ci);
+        }
+        html += '<div class="task-row">'
+          + '<span>'+(used?'💥':'💣')+'</span>'
+          + '<span style="flex:1;font-size:0.78rem;color:'+(used?'#8b949e':'#f85149')+'">'+
+          (used?'Wysadzona · '+(m.mineVictim||'?'):'Aktywna · '+((m.mineDuration||120)/60)+' min')+'</span>'
+          + (m.lat?'':'<span style="color:var(--amber);font-size:0.72rem">⚠ Brak GPS</span>')
+          + '<button onclick="openGeoModal(\'mine\',\''+ch.key+'\')" style="background:none;border:none;color:'+(m.lat?'var(--green)':'var(--muted)')+';cursor:pointer;font-size:0.9rem;">📍</button>'
+          + '<button onclick="deleteMine(\''+ch.key+'\')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:0.85rem;">✕</button>'
+          + '</div>';
+      });
+    }
+    document.getElementById('mines-list').innerHTML = html || '<div style="color:var(--muted);font-size:0.8rem">Brak min</div>';
+  });
+}
+
+async function addMine() {
+  var durVal = document.getElementById('mine-dur').value;
+  var dur = durVal === 'random' ? (Math.random() < 0.5 ? 60 : 120) : (parseInt(durVal) || 120);
+  var newRef = ref('mines').push();
+  await newRef.set({ mineDuration: dur, radius: 15, mineUsed: false, mineVictim: null, lat: null, lng: null, createdAt: Date.now() });
+  toast('💣 Mina dodana — ustaw lokalizację (📍)');
+}
+
+async function deleteMine(id) {
+  await ref('mines/'+id).remove();
+  toast('Mina usunięta');
+}
+
+async function deleteAllMines() {
+  if (!confirm('Usunąć wszystkie miny?')) return;
+  await ref('mines').remove();
+  toast('Wszystkie miny usunięte');
+}
+
+// ── FIELD ITEMS ADMIN ────────────────────────────────────────
+function listenFieldItemsAdmin() {
+  ref('field_items').on('value', function(snap) {
+    // markery przedmiotów terenowych na mapie admina
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  GEO MODAL (zadania, miny, przedmioty)
+// ═══════════════════════════════════════════════════════════
+function openGeoModal(type, id) {
+  geoContext = { type: type, id: id };
+  var titles = { task: '📍 Lokalizacja zadania', mine: '💣 Lokalizacja miny', item: '🎁 Przedmiot w terenie' };
+  document.getElementById('geo-title').textContent = titles[type] || 'Ustaw lokalizację';
+  document.getElementById('geo-modal').classList.add('on');
+  setTimeout(function() {
+    if (!geoMap) {
+      geoMap = L.map('geo-map').setView([52.23, 21.01], 14);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM' }).addTo(geoMap);
+      geoMap.on('click', function(e) {
+        geoTempLat = e.latlng.lat;
+        geoTempLng = e.latlng.lng;
+        if (!geoMarker) {
+          geoMarker = L.marker([geoTempLat, geoTempLng]).addTo(geoMap);
+        } else {
+          geoMarker.setLatLng([geoTempLat, geoTempLng]);
+        }
+        var r = parseInt(document.getElementById('geo-radius').value);
+        if (!geoCircle) {
+          geoCircle = L.circle([geoTempLat, geoTempLng], { radius: r, color:'var(--accent)', fillOpacity:.1, weight:2 }).addTo(geoMap);
+        } else {
+          geoCircle.setLatLng([geoTempLat, geoTempLng]);
+        }
+        document.getElementById('geo-coords').textContent = geoTempLat.toFixed(5) + ', ' + geoTempLng.toFixed(5);
+      });
+    }
+    geoMap.invalidateSize();
+    // załaduj istniejący punkt
+    var dbPath = { task:'tasks', mine:'mines', item:'field_items' }[type];
+    ref(dbPath+'/'+id).get().then(function(snap) {
+      if (!snap.exists()) return;
+      var d = snap.val();
+      var lat = d.geoLat || d.lat;
+      var lng = d.geoLng || d.lng;
+      var radius = d.geoRadius || d.radius || 50;
+      if (lat && lng) {
+        geoTempLat = lat; geoTempLng = lng;
+        document.getElementById('geo-radius').value = radius;
+        document.getElementById('geo-radius-val').textContent = radius;
+        document.getElementById('geo-coords').textContent = lat.toFixed(5)+', '+lng.toFixed(5);
+        if (!geoMarker) geoMarker = L.marker([lat,lng]).addTo(geoMap);
+        else geoMarker.setLatLng([lat,lng]);
+        if (!geoCircle) geoCircle = L.circle([lat,lng],{radius:radius,color:'var(--accent)',fillOpacity:.1,weight:2}).addTo(geoMap);
+        else { geoCircle.setLatLng([lat,lng]); geoCircle.setRadius(radius); }
+        geoMap.setView([lat,lng], 16);
+      }
+    });
+  }, 80);
+}
+
+function updateGeoCircle() {
+  if (!geoCircle || !geoTempLat) return;
+  geoCircle.setRadius(parseInt(document.getElementById('geo-radius').value));
+}
+
+function updateGeoMarkerOnAdmin() {
+  if (!geoMarker) {
+    geoMarker = L.marker([geoTempLat, geoTempLng]).addTo(geoMap);
+  } else {
+    geoMarker.setLatLng([geoTempLat, geoTempLng]);
+  }
+  var r = parseInt(document.getElementById('geo-radius').value);
+  if (!geoCircle) {
+    geoCircle = L.circle([geoTempLat, geoTempLng], { radius: r, color:'var(--accent)', fillOpacity:.1, weight:2 }).addTo(geoMap);
+  } else {
+    geoCircle.setLatLng([geoTempLat, geoTempLng]); geoCircle.setRadius(r);
+  }
+}
+
+function closeGeoModal() {
+  document.getElementById('geo-modal').classList.remove('on');
+  geoContext = null;
+}
+
+async function saveGeoPoint() {
+  if (!geoContext || !geoTempLat) { toast('Kliknij na mapie aby ustawić punkt'); return; }
+  var radius = parseInt(document.getElementById('geo-radius').value);
+  var type = geoContext.type;
+  var id   = geoContext.id;
+  if (type === 'task') {
+    await ref('tasks/'+id).update({ geoLat: geoTempLat, geoLng: geoTempLng, geoRadius: radius });
+  } else if (type === 'mine') {
+    await ref('mines/'+id).update({ lat: geoTempLat, lng: geoTempLng, radius: radius });
+  } else if (type === 'item') {
+    await ref('field_items/'+id).update({ lat: geoTempLat, lng: geoTempLng, radius: radius });
+  }
+  closeGeoModal();
+  toast('✅ Lokalizacja zapisana');
+}
+
+async function clearGeoPoint() {
+  if (!geoContext) return;
+  var type = geoContext.type;
+  var id   = geoContext.id;
+  if (type === 'task') await ref('tasks/'+id).update({ geoLat: null, geoLng: null });
+  else if (type === 'mine') await ref('mines/'+id).update({ lat: null, lng: null });
+  else if (type === 'item') await ref('field_items/'+id).update({ lat: null, lng: null });
+  if (geoMarker) { geoMarker.remove(); geoMarker = null; }
+  if (geoCircle) { geoCircle.remove(); geoCircle = null; }
+  geoTempLat = null; geoTempLng = null;
+  document.getElementById('geo-coords').textContent = 'Kliknij na mapie aby ustawić punkt';
+  toast('Punkt usunięty');
+}
+
+// ─── FIN ───────────────────────────────────────────────────
+
+// Rozłóż przedmiot w terenie — otwórz geo-modal dla nowego egzemplarza field_item
+function placeItemInField(itemId, itemDataEncoded) {
+  var it = {};
+  try { it = JSON.parse(decodeURIComponent(itemDataEncoded)); } catch(e) {}
+  var newRef = ref('field_items').push();
+  var fid = newRef.key;
+  newRef.set({
+    itemId:   itemId,
+    icon:     it.icon  || '🎁',
+    name:     it.name  || 'Przedmiot',
+    desc:     it.desc  || '',
+    effect:   it.effect|| 'none',
+    lat:      null,
+    lng:      null,
+    radius:   20,
+    pickedUp: null,
+    placedAt: Date.now()
+  }).then(function() {
+    openGeoModal('item', fid);
+    toast('Ustaw lokalizację przedmiotu na mapie');
+  });
+}
+
+// Markery field_items na mapie admina
+var fieldItemAdminMarkers = [];
+function renderFieldItemsOnAdminMap(snap) {
+  fieldItemAdminMarkers.forEach(function(m){ try{ m.remove(); }catch(e){} });
+  fieldItemAdminMarkers = [];
+  if (!adminMap || !snap.exists()) return;
+  snap.forEach(function(ch) {
+    var it = ch.val();
+    if (!it.lat || !it.lng) return;
+    var picked = !!it.pickedUp;
+    var icon = L.divIcon({
+      className: '',
+      html: '<div style="font-size:1.4rem;filter:'+(picked?'grayscale(1) opacity(.4)':'drop-shadow(0 2px 4px rgba(0,0,0,.7))')+'">'+( it.icon||'🎁')+'</div>',
+      iconSize: [26,26], iconAnchor: [13,13]
+    });
+    var mk = L.marker([it.lat, it.lng], { icon: icon }).addTo(adminMap);
+    mk.bindPopup('<b>'+(it.icon||'🎁')+' '+(it.name||'Przedmiot')+'</b><br>'+(picked?'Zebrane przez: '+it.pickedUp:'Dostępne · r='+(it.radius||20)+'m'));
+    var ci = L.circle([it.lat, it.lng], {
+      radius: it.radius||20,
+      color: picked ? '#8b949e' : '#3fb950',
+      fillOpacity: picked ? .04 : .1,
+      weight: 1.5
+    }).addTo(adminMap);
+    fieldItemAdminMarkers.push(mk, ci);
+  });
+}
+
+// Icon picker
+var ITEM_ICONS = [
+  '🎁','🛡️','⚡','🔑','💊','🗡️','🏹','💣','🧲','🔭',
+  '🧪','🎯','🪄','🗺️','🧭','🔮','💎','🪙','🧲','⚗️',
+  '🥾','🧤','🎒','🪖','🦺','🔦','🧰','📡','🚀','❄️'
+];
+
+document.addEventListener('DOMContentLoaded', function() {
+  var picker = document.getElementById('icon-picker');
+  if (!picker) return;
+  ITEM_ICONS.forEach(function(ico) {
+    var btn = document.createElement('button');
+    btn.className = 'icon-btn' + (ico === '🎁' ? ' selected' : '');
+    btn.textContent = ico;
+    btn.type = 'button';
+    btn.onclick = function() {
+      document.querySelectorAll('.icon-btn').forEach(function(b){ b.classList.remove('selected'); });
+      btn.classList.add('selected');
+      document.getElementById('item-icon').value = ico;
+    };
+    picker.appendChild(btn);
+  });
+});
+
+function adminLocate() {
+  if (!navigator.geolocation) { toast('GPS niedostępny w tej przeglądarce'); return; }
+  toast('⏳ Szukam lokalizacji...');
+  navigator.geolocation.getCurrentPosition(
+    function(pos) {
+      var lat = pos.coords.latitude;
+      var lng = pos.coords.longitude;
+      if (!adminMap) initAdminMap();
+      setTimeout(function() {
+        adminMap.flyTo([lat, lng], 17, { duration: 1 });
+        if (window._adminLocMarker) window._adminLocMarker.remove();
+        var icon = L.divIcon({
+          className: '',
+          html: '<div style="width:14px;height:14px;background:#f85149;border:2px solid #fff;border-radius:50%;box-shadow:0 0 10px rgba(248,81,73,.8)"></div>',
+          iconSize: [14,14], iconAnchor: [7,7]
+        });
+        window._adminLocMarker = L.marker([lat, lng], { icon: icon })
+          .addTo(adminMap)
+          .bindPopup('📍 Twoja lokalizacja<br><small>'+lat.toFixed(5)+', '+lng.toFixed(5)+'</small>')
+          .openPopup();
+        toast('📍 Lokalizacja znaleziona!');
+      }, 300);
+    },
+    function(err) {
+      if (err.code === 1) toast('❌ Odmówiono dostępu do GPS — sprawdź ustawienia przeglądarki');
+      else toast('❌ Nie udało się pobrać lokalizacji');
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+  );
+}
+</script>
+</body>
+</html>
